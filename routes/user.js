@@ -1,9 +1,12 @@
 const express = require('express');
 const userRouter = express.Router();
-const {userModel} = require('../db')
+const {userModel, courseModel, purchaseModel} = require('../db')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
-const {JWT_USER_SECRET} = require('../config')
+const JWT_USER_SECRET = require('../config')
+const {userMiddlewares} = require('../middlewares/user.js')
+const {z} = require('zod')
+const mongoose = require('mongoose')
 
     userRouter.post('/signup',async function(req,res){
         const {email,password,firstName,lastName} = req.body; 
@@ -57,15 +60,61 @@ const {JWT_USER_SECRET} = require('../config')
     
     })
     
-    userRouter.post('/user/purchase', function(req,res){
-        const userId = req.userId;
+    userRouter.post('/purchase', userMiddlewares, async function (req, res) {
+        const purchasedSchema = z.object({
+            courseId: z.string().nonempty("Course Id cannot be empty"),
+        });
+    
+        const parsedData = purchasedSchema.safeParse(req.body);
+    
+        if (!parsedData.success) {
+            return res.status(400).json({
+                message: "Invalid request",
+                error: parsedData.error.errors,
+            });
+        }
+    
+        // Destructure courseId only after validation succeeds
+        const { courseId } = parsedData.data;
+    
+        try {
+            // Validate courseId format
+            if (!mongoose.Types.ObjectId.isValid(courseId)) {
+                return res.status(400).json({
+                    message: "Invalid courseId format",
+                });
+            }
+    
+            // Convert courseId to ObjectId using `new`
+            const course = await courseModel.findOne({
+                _id: new mongoose.Types.ObjectId(courseId),
+            });
+    
+            if (!course) {
+                return res.status(404).json({
+                    message: "Course not found",
+                });
+            }
+    
+            // Create a purchase record
+            await purchaseModel.create({
+                userId: req.userId,
+                courseId: course._id,
+            });
+    
+            res.json({
+                message: "Course successfully purchased",
+                course,
+            });
+        } catch (error) {
+            console.error("Error during course purchase:", error.message);
+            res.status(500).json({
+                message: "An error occurred during purchase",
+                error: error.message,
+            });
+        }
+    });
 
-    })
-
-    function userAuth(req,res,next) {
-        const token = req.headers.token;
-        const decodedData = JWT.verify(token, JWT_SECRET);
-    }
 
 
 module.exports = {

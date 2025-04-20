@@ -103,21 +103,50 @@ adminRouter.post('/course',adminMiddlewares, async function(req, res) {
     })
 })
 
-adminRouter.put('/', async function(req,res){
-    const toUpdate = req.body;
+adminRouter.put('/course-update', adminMiddlewares,async function(req,res){
+    const creatorId = req.CreatorId
+    const {title, description, price, imageUrl, courseId} = req.body;
 
-    await courseModel.updateOne({
-        toUpdate
+    const updated = await courseModel.findOneAndUpdate({
+        _id: courseId,
+        creatorId: creatorId
+    }, {
+        title,
+        description,
+        price,
+        imageUrl
+    }, {
+        new: true
+    })
+    console.log(courseId)
+    console.log(creatorId)
+
+    if(!updated) {
+        res.status(403).json({
+            message:"You are not the creator"
+        })
+    }
+
+    res.json({
+        message:"Course updated",
+        course: updated
     })
 })
 
-adminRouter.get('/all', function(req,res){
-    res.json({
-        message:"Admin login endpoint"
+adminRouter.get('/all', adminMiddlewares,async function(req,res){
+    const creatorId = req.CreatorId;
+    const courses = await courseModel.findOne({
+        creatorId
     })
+
+    res.json({
+        courses
+    })
+
 })
 
 
 module.exports = {
     adminRouter
 }
+
